@@ -8,7 +8,7 @@
 # This is the outermost layer of the part of the program that you'll need to build,
 # which means that YOU WILL DEFINITELY NEED TO MAKE CHANGES TO THIS FILE.
 
-
+from p2app.events.app import QuitInitiatedEvent
 
 class Engine:
     """An object that represents the application's engine, whose main role is to
@@ -29,4 +29,8 @@ class Engine:
         # This is a way to write a generator function that always yields zero values.
         # You'll want to remove this and replace it with your own code, once you start
         # writing your engine, but this at least allows the program to run.
-        yield from ()
+        if type(event) == QuitInitiatedEvent:
+            yield 'EndApplicationEvent'
+            exit()
+        else:
+            yield event
