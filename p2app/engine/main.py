@@ -8,7 +8,12 @@
 # This is the outermost layer of the part of the program that you'll need to build,
 # which means that YOU WILL DEFINITELY NEED TO MAKE CHANGES TO THIS FILE.
 
-from p2app.events.app import QuitInitiatedEvent
+
+import sqlite3
+from p2app.events.app import QuitInitiatedEvent, EndApplicationEvent
+from p2app.events.database import OpenDatabaseEvent, CloseDatabaseEvent
+from applicationlevelevents import opendatabaseevent, _disconnect
+
 
 class Engine:
     """An object that represents the application's engine, whose main role is to
@@ -29,8 +34,13 @@ class Engine:
         # This is a way to write a generator function that always yields zero values.
         # You'll want to remove this and replace it with your own code, once you start
         # writing your engine, but this at least allows the program to run.
+        print(event, type(event))
         if type(event) == QuitInitiatedEvent:
-            yield 'EndApplicationEvent'
+            yield EndApplicationEvent
             exit()
-        else:
-            yield event
+
+        elif type(event) == OpenDatabaseEvent:
+            opendatabaseevent(event)
+
+        # elif type(event) == CloseDatabaseEvent:
+        #     _disconnect(connection)
