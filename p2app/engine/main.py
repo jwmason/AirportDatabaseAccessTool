@@ -13,6 +13,8 @@ import sqlite3
 from p2app.events.app import QuitInitiatedEvent, EndApplicationEvent
 from p2app.events.database import OpenDatabaseEvent, CloseDatabaseEvent,\
     DatabaseOpenedEvent, DatabaseOpenFailedEvent, DatabaseClosedEvent
+from p2app.events.continents import StartContinentSearchEvent, ContinentSearchResultEvent
+from collections import namedtuple
 
 
 class Engine:
@@ -22,10 +24,11 @@ class Engine:
     unaware of any details of how the engine is implemented.
     """
 
+    connection = None
+
     def __init__(self):
         """Initializes the engine"""
         pass
-
 
     def process_event(self, event):
         """A generator function that processes one event sent from the user interface,
@@ -40,18 +43,41 @@ class Engine:
         elif type(event) == OpenDatabaseEvent:
             database_path = event.path()
             db_checker = is_sqlite_database(database_path)
-            try:
-                if db_checker:
-                    connection = sqlite3.connect(database_path, isolation_level = None)
-                    _quietly_execute_statement(connection, 'PRAGMA foreign_keys = ON;')
-                    yield DatabaseOpenedEvent(database_path)
-                else:
-                    yield DatabaseOpenFailedEvent('not a database')
-            except sqlite3.Error as e:
-                _display_error(e)
+            if db_checker:
+                yield DatabaseOpenedEvent(database_path)
+                global connection
+                connection = sqlite3.connect(database_path, isolation_level = None)
+                _quietly_execute_statement(connection, 'PRAGMA foreign_keys = ON;')
+            else:
+                yield DatabaseOpenFailedEvent('The file selected is not a database file.')
 
         elif type(event) == CloseDatabaseEvent:
             yield DatabaseClosedEvent()
+
+        elif type(event) == StartContinentSearchEvent:
+            continent_name = event._name
+            continent_code = event._continent_code
+            if continent_name is not None and event.continent_code is not None:
+                # yield ContinentSearchResultEvent(continent)
+                pass
+            elif continent_name is not None:
+                # yield ContinentSearchResultEvent(continent)
+                pass
+            elif event.continent_code is not None:
+                cursor = connection.cursor()
+
+                # Execute the SQL statement
+                cursor.execute("SELECT * FROM continent WHERE continent_code = ?",
+                               (continent_code,))
+
+                # Fetch the result
+                result = cursor.fetchone()
+                Continent = namedtuple('Continent', ['continent_id', 'continent_code', 'name'])
+                result = Continent._make(result)
+                yield ContinentSearchResultEvent(result)
+                # Close the cursor and the database connection
+                cursor.close()
+
 
 def is_sqlite_database(database_path):
     """Checks if file is a database"""
@@ -72,8 +98,3 @@ def _quietly_execute_statement(connection, statement):
         # was opened.
         if cursor is not None:
             cursor.close()
-
-
-def _display_error(e):
-    error_message = ' '.join(e.args)
-    print(f'ERROR: {error_message}')
