@@ -39,6 +39,8 @@ class Engine:
         """A generator function that processes one event sent from the user interface,
         yielding zero or more events in response."""
 
+        define_globals()
+
         if isinstance(event, QuitInitiatedEvent):
             yield EndApplicationEvent()
 
@@ -61,7 +63,20 @@ class Engine:
             yield from process_start_country_search_event(event)
 
 
+def define_globals():
+    """This function defines the global namedtuples of the functions"""
+    global Continent
+    Continent = namedtuple('Continent', ['continent_id', 'continent_code', 'name'])
+    global Country
+    Country = namedtuple('Country', ['country_id', 'country_code', 'name', 'continent_id',
+                                     'wikipedia_link', 'keywords'])
+    global Region
+    Region = namedtuple('Region', ['region_id', 'region_code', 'local_code', 'name',
+                                   'continent_id', 'country_id', 'wikipedia_link', 'keywords'])
+
+
 def process_open_database_event(event):
+    """THis function opens the database file"""
     database_path = event.path()
     db_checker = is_sqlite_database(database_path)
     if db_checker:
@@ -74,10 +89,9 @@ def process_open_database_event(event):
 
 
 def process_start_continent_search_event(event):
+    """This function starts continent search"""
     continent_name = event._name
     continent_code = event._continent_code
-    global Continent
-    Continent = namedtuple('Continent', ['continent_id', 'continent_code', 'name'])
     cursor = connection.cursor()
 
     if continent_name is not None and continent_code is not None:
@@ -101,6 +115,7 @@ def process_start_continent_search_event(event):
 
 
 def process_load_continent_event(event):
+    """This function loads continent based on id"""
     continent_id = event._continent_id
     cursor = connection.cursor()
 
@@ -117,6 +132,7 @@ def process_load_continent_event(event):
 
 
 def process_save_continent_event(event):
+    """This function saves continent information, old and new continents"""
     continent = event._continent
     continent_id = continent.continent_id
     continent_code = continent.continent_code
@@ -141,7 +157,49 @@ def process_save_continent_event(event):
 
 
 def process_start_country_search_event(event):
+    """This function starts a country search"""
+    country_name = event._name
+    country_code = event._country_code
+    cursor = connection.cursor()
 
+    if country_name is not None and country_code is not None:
+        cursor.execute("SELECT * FROM country WHERE country_code = ? AND name = ?;",
+                       (country_code, country_name))
+    elif country_name is not None:
+        cursor.execute("SELECT * FROM country WHERE name = ?;",
+                       (country_name,))
+    elif country_code is not None:
+        cursor.execute("SELECT * FROM country WHERE country_code = ?;",
+                       (country_code,))
+
+    result = cursor.fetchone()
+    if result is not None:
+        result = Country._make(result)
+        yield CountrySearchResultEvent(result)
+    else:
+        yield ()
+
+    cursor.close()
+
+
+def process_load_country_event(event):
+    pass
+
+
+def process_save_country_event(event):
+    pass
+
+
+def process_start_region_search_event(event):
+    pass
+
+
+def process_load_region_event(event):
+    pass
+
+
+def process_save_region_event(event):
+    pass
 
 
 def is_sqlite_database(database_path):
