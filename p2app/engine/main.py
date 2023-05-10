@@ -218,7 +218,33 @@ def process_load_country_event(event):
 
 
 def process_save_country_event(event):
-    pass
+    """This function saves continent information, old and new countries"""
+    # Defining parameters
+    country = event._country
+    country_id = country.country_id
+    country_code = country.country_code
+    name = country.name
+    continent_id = country.continent_id
+    wiki_link = country.wikipedia_link
+    keywords = country.keywords
+    cursor = connection.cursor()
+
+    # Filtering New Country Event versus Existing Country Event
+    try:
+        if isinstance(event, SaveNewCountryEvent):
+            cursor.execute(
+                "INSERT INTO country (country_id, country_code, name, continent_id, wikipedia_link, keywords) VALUES (?, ?, ?, ?, ?, ?);",
+                (country_id, country_code, name, continent_id, wiki_link, keywords))
+        elif isinstance(event, SaveCountryEvent):
+            cursor.execute(
+                "UPDATE country SET country_code = ?, name = ?, continent_id = ?, wikipedia_link = ?, keywords = ? WHERE country_id = ?;",
+                (country_code, name, continent_id, wiki_link, keywords, country_id))
+    except sqlite3.IntegrityError as e:
+        yield SaveCountryFailedEvent(e)
+    # Fetching result
+    result = cursor.fetchone()
+    yield CountrySavedEvent(result)
+    cursor.close()
 
 
 def process_start_region_search_event(event):
