@@ -70,6 +70,12 @@ class Engine:
             yield from process_start_country_search_event(event)
 
 
+        elif isinstance(event, LoadCountryEvent):
+            yield from process_load_country_event(event)
+
+        elif isinstance(event, (SaveNewCountryEvent, SaveCountryEvent)):
+            yield from process_save_country_event(event)
+
 def define_globals():
     """This function defines the global namedtuples of the functions"""
     global Continent
@@ -195,7 +201,20 @@ def process_start_country_search_event(event):
 
 
 def process_load_country_event(event):
-    pass
+    """This function loads country based on id"""
+    # Defining parameters
+    country_id = event._country_id
+    cursor = connection.cursor()
+    cursor.execute("SELECT * FROM country WHERE country_id = ?;",
+                   (country_id,))
+    # Fetching result
+    result = cursor.fetchone()
+    if result is not None:
+        result = Country._make(result)
+        yield CountryLoadedEvent(result)
+    else:
+        yield ()
+    cursor.close()
 
 
 def process_save_country_event(event):
