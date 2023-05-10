@@ -126,17 +126,39 @@ class Engine:
 
         elif type(event) == SaveNewContinentEvent:
             continent = event._continent
-            print(continent)
-            yield ContinentSavedEvent(continent)
-            # except sqlite3.Error:
-            #     yield SaveContinentFailedEvent(continent)
+            continent_id = continent.continent_id
+            continent_code = continent.continent_code
+            name = continent.name
+            cursor = connection.cursor()
+            # Execute the SQL statement
+            cursor.execute(
+                "INSERT INTO continent (continent_id, continent_code, name) VALUES (?, ?, ?);",
+                (continent_id, continent_code, name))
+
+            # Fetch the result
+            result = cursor.fetchone()
+            try:
+                yield ContinentSavedEvent(result)
+            except sqlite3.Error:
+                yield SaveContinentFailedEvent(result)
+            cursor.close()
 
         elif type(event) == SaveContinentEvent:
             continent = event._continent
-            print(continent)
-            yield ContinentSavedEvent(continent)
-            # except sqlite3.Error:
-            #     yield SaveContinentFailedEvent(continent)
+            continent_id = continent.continent_id
+            continent_code = continent.continent_code
+            name = continent.name
+            cursor = connection.cursor()
+            # Execute the SQL statement
+            cursor.execute("UPDATE continent SET continent_code = ?, name = ? WHERE continent_id = ?;",
+                           (continent_code, name, continent_id))
+            # Fetch the result
+            result = cursor.fetchone()
+            try:
+                yield ContinentSavedEvent(result)
+            except sqlite3.Error:
+                yield SaveContinentFailedEvent(result)
+            cursor.close()
 
 def is_sqlite_database(database_path):
     """Checks if file is a database"""
