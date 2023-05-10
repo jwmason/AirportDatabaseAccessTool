@@ -39,7 +39,10 @@ class Engine:
         """A generator function that processes one event sent from the user interface,
         yielding zero or more events in response."""
 
+        # Defining global namedtuple variables
         define_globals()
+
+        # Application-Level Events
 
         if isinstance(event, QuitInitiatedEvent):
             yield EndApplicationEvent()
@@ -50,6 +53,8 @@ class Engine:
         elif isinstance(event, CloseDatabaseEvent):
             yield DatabaseClosedEvent()
 
+        # Continent-Related Events
+
         elif isinstance(event, StartContinentSearchEvent):
             yield from process_start_continent_search_event(event)
 
@@ -58,6 +63,8 @@ class Engine:
 
         elif isinstance(event, (SaveNewContinentEvent, SaveContinentEvent)):
             yield from process_save_continent_event(event)
+
+        # Country-related Events
 
         elif isinstance(event, StartCountrySearchEvent):
             yield from process_start_country_search_event(event)
@@ -76,11 +83,13 @@ def define_globals():
 
 
 def process_open_database_event(event):
-    """THis function opens the database file"""
+    """This function opens the database file"""
     database_path = event.path()
+    # Checks if it's a database file
     db_checker = is_sqlite_database(database_path)
     if db_checker:
         global connection
+        # Allowing only one connection at a time and turning on data integrity
         connection = sqlite3.connect(database_path, isolation_level = None)
         _quietly_execute_statement(connection, 'PRAGMA foreign_keys = ON;')
         yield DatabaseOpenedEvent(database_path)
@@ -90,10 +99,11 @@ def process_open_database_event(event):
 
 def process_start_continent_search_event(event):
     """This function starts continent search"""
+    # Defining parameters
     continent_name = event._name
     continent_code = event._continent_code
     cursor = connection.cursor()
-
+    # Checking all cases of search parameters
     if continent_name is not None and continent_code is not None:
         cursor.execute("SELECT * FROM continent WHERE continent_code = ? AND name = ?;",
                        (continent_code, continent_name))
@@ -103,42 +113,43 @@ def process_start_continent_search_event(event):
     elif continent_code is not None:
         cursor.execute("SELECT * FROM continent WHERE continent_code = ?;",
                        (continent_code,))
-
+    # Fetching result
     result = cursor.fetchone()
     if result is not None:
         result = Continent._make(result)
         yield ContinentSearchResultEvent(result)
     else:
         yield ()
-
     cursor.close()
 
 
 def process_load_continent_event(event):
     """This function loads continent based on id"""
+    # Defining parameters
     continent_id = event._continent_id
     cursor = connection.cursor()
-
     cursor.execute("SELECT * FROM continent WHERE continent_id = ?;",
                    (continent_id,))
+    # Fetching result
     result = cursor.fetchone()
     if result is not None:
         result = Continent._make(result)
         yield ContinentLoadedEvent(result)
     else:
         yield ()
-
     cursor.close()
 
 
 def process_save_continent_event(event):
     """This function saves continent information, old and new continents"""
+    # Defining parameters
     continent = event._continent
     continent_id = continent.continent_id
     continent_code = continent.continent_code
     name = continent.name
     cursor = connection.cursor()
 
+    # Filtering New Continent Event versus Existing Continent Event
     try:
         if isinstance(event, SaveNewContinentEvent):
             cursor.execute(
@@ -150,7 +161,7 @@ def process_save_continent_event(event):
                 (continent_code, name, continent_id))
     except sqlite3.IntegrityError as e:
         yield SaveContinentFailedEvent(e)
-
+    # Fetching result
     result = cursor.fetchone()
     yield ContinentSavedEvent(result)
     cursor.close()
@@ -158,10 +169,12 @@ def process_save_continent_event(event):
 
 def process_start_country_search_event(event):
     """This function starts a country search"""
+    # Defining parameters
     country_name = event._name
     country_code = event._country_code
     cursor = connection.cursor()
 
+    # Checking all cases of search parameters
     if country_name is not None and country_code is not None:
         cursor.execute("SELECT * FROM country WHERE country_code = ? AND name = ?;",
                        (country_code, country_name))
@@ -171,14 +184,13 @@ def process_start_country_search_event(event):
     elif country_code is not None:
         cursor.execute("SELECT * FROM country WHERE country_code = ?;",
                        (country_code,))
-
+    # Fetching result
     result = cursor.fetchone()
     if result is not None:
         result = Country._make(result)
         yield CountrySearchResultEvent(result)
     else:
         yield ()
-
     cursor.close()
 
 
