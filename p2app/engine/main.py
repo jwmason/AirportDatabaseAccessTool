@@ -16,6 +16,9 @@ from p2app.events.database import OpenDatabaseEvent, CloseDatabaseEvent,\
 from p2app.events.continents import StartContinentSearchEvent, ContinentSearchResultEvent,\
     LoadContinentEvent, ContinentLoadedEvent, ContinentSavedEvent, SaveNewContinentEvent,\
     SaveContinentFailedEvent, SaveContinentEvent
+from p2app.events.countries import StartCountrySearchEvent, CountrySearchResultEvent,\
+    LoadCountryEvent, CountryLoadedEvent, SaveCountryEvent, SaveNewCountryEvent, CountrySavedEvent,\
+    SaveCountryFailedEvent
 from collections import namedtuple
 
 
@@ -36,134 +39,110 @@ class Engine:
         """A generator function that processes one event sent from the user interface,
         yielding zero or more events in response."""
 
-        # This is a way to write a generator function that always yields zero values.
-        # You'll want to remove this and replace it with your own code, once you start
-        # writing your engine, but this at least allows the program to run.
-        if type(event) == QuitInitiatedEvent:
+        if isinstance(event, QuitInitiatedEvent):
             yield EndApplicationEvent()
 
-        elif type(event) == OpenDatabaseEvent:
-            database_path = event.path()
-            db_checker = is_sqlite_database(database_path)
-            if db_checker:
-                global connection
-                connection = sqlite3.connect(database_path, isolation_level = None)
-                _quietly_execute_statement(connection, 'PRAGMA foreign_keys = ON;')
-                yield DatabaseOpenedEvent(database_path)
-            else:
-                yield DatabaseOpenFailedEvent('The file selected is not a database file.')
+        elif isinstance(event, OpenDatabaseEvent):
+            yield from process_open_database_event(event)
 
-        elif type(event) == CloseDatabaseEvent:
+        elif isinstance(event, CloseDatabaseEvent):
             yield DatabaseClosedEvent()
 
-        elif type(event) == StartContinentSearchEvent:
-            continent_name = event._name
-            continent_code = event._continent_code
-            global Continent
-            Continent = namedtuple('Continent', ['continent_id', 'continent_code', 'name'])
+        elif isinstance(event, StartContinentSearchEvent):
+            yield from process_start_continent_search_event(event)
 
-            if (continent_name is not None) and (continent_code is not None):
-                cursor = connection.cursor()
-                # Execute the SQL statement
-                cursor.execute("SELECT * FROM continent WHERE continent_code = ? AND name = ?;",
-                                 (continent_code, continent_name))
-                # Fetch the result
-                result = cursor.fetchone()
-                if result is not None:
-                    result = Continent._make(result)
-                    yield ContinentSearchResultEvent(result)
-                else:
-                    # Handle the case when no matching continent is found
-                    yield ()
-                cursor.close()
+        elif isinstance(event, LoadContinentEvent):
+            yield from process_load_continent_event(event)
 
-            elif continent_name is not None:
-                cursor = connection.cursor()
+        elif isinstance(event, (SaveNewContinentEvent, SaveContinentEvent)):
+            yield from process_save_continent_event(event)
 
-                # Execute the SQL statement
-                cursor.execute("SELECT * FROM continent WHERE name = ?;",
-                                 (continent_name,))
-                # Fetch the result
-                result = cursor.fetchone()
-                if result is not None:
-                    result = Continent._make(result)
-                    yield ContinentSearchResultEvent(result)
-                else:
-                    # Handle the case when no matching continent is found
-                    yield ()
-                cursor.close()
+        elif isinstance(event, StartCountrySearchEvent):
+            yield from process_start_country_search_event(event)
 
-            elif event.continent_code is not None:
-                cursor = connection.cursor()
-                # Execute the SQL statement
-                cursor.execute("SELECT * FROM continent WHERE continent_code = ?;",
-                                (continent_code,))
-                # Fetch the result
-                result = cursor.fetchone()
-                if result is not None:
-                    result = Continent._make(result)
-                    yield ContinentSearchResultEvent(result)
-                else:
-                    # Handle the case when no matching continent is found
-                    yield ()
-                cursor.close()
 
-        elif type(event) == LoadContinentEvent:
-             continent_id = event._continent_id
-             cursor = connection.cursor()
-             # Execute the SQL statement
-             cursor.execute("SELECT * FROM continent WHERE continent_id = ?;",
-                            (continent_id,))
-             # Fetch the result
-             result = cursor.fetchone()
-             if result is not None:
-                 result = Continent._make(result)
-                 yield ContinentLoadedEvent(result)
-             else:
-                 # Handle the case when no matching continent is found
-                 yield ()
-             cursor.close()
+def process_open_database_event(event):
+    database_path = event.path()
+    db_checker = is_sqlite_database(database_path)
+    if db_checker:
+        global connection
+        connection = sqlite3.connect(database_path, isolation_level = None)
+        _quietly_execute_statement(connection, 'PRAGMA foreign_keys = ON;')
+        yield DatabaseOpenedEvent(database_path)
+    else:
+        yield DatabaseOpenFailedEvent('The file selected is not a database file.')
 
-        elif type(event) == SaveNewContinentEvent:
-            continent = event._continent
-            continent_id = continent.continent_id
-            continent_code = continent.continent_code
-            name = continent.name
-            cursor = connection.cursor()
-            # Execute the SQL statement
-            try:
-                cursor.execute(
+
+def process_start_continent_search_event(event):
+    continent_name = event._name
+    continent_code = event._continent_code
+    global Continent
+    Continent = namedtuple('Continent', ['continent_id', 'continent_code', 'name'])
+    cursor = connection.cursor()
+
+    if continent_name is not None and continent_code is not None:
+        cursor.execute("SELECT * FROM continent WHERE continent_code = ? AND name = ?;",
+                       (continent_code, continent_name))
+    elif continent_name is not None:
+        cursor.execute("SELECT * FROM continent WHERE name = ?;",
+                       (continent_name,))
+    elif continent_code is not None:
+        cursor.execute("SELECT * FROM continent WHERE continent_code = ?;",
+                       (continent_code,))
+
+    result = cursor.fetchone()
+    if result is not None:
+        result = Continent._make(result)
+        yield ContinentSearchResultEvent(result)
+    else:
+        yield ()
+
+    cursor.close()
+
+
+def process_load_continent_event(event):
+    continent_id = event._continent_id
+    cursor = connection.cursor()
+
+    cursor.execute("SELECT * FROM continent WHERE continent_id = ?;",
+                   (continent_id,))
+    result = cursor.fetchone()
+    if result is not None:
+        result = Continent._make(result)
+        yield ContinentLoadedEvent(result)
+    else:
+        yield ()
+
+    cursor.close()
+
+
+def process_save_continent_event(event):
+    continent = event._continent
+    continent_id = continent.continent_id
+    continent_code = continent.continent_code
+    name = continent.name
+    cursor = connection.cursor()
+
+    try:
+        if isinstance(event, SaveNewContinentEvent):
+            cursor.execute(
                 "INSERT INTO continent (continent_id, continent_code, name) VALUES (?, ?, ?);",
                 (continent_id, continent_code, name))
-            except sqlite3.IntegrityError as e:
-                yield SaveContinentFailedEvent(e)
-            # Fetch the result
-            result = cursor.fetchone()
-            try:
-                yield ContinentSavedEvent(result)
-            except sqlite3.Error:
-                yield SaveContinentFailedEvent(result)
-            cursor.close()
+        elif isinstance(event, SaveContinentEvent):
+            cursor.execute(
+                "UPDATE continent SET continent_code = ?, name = ? WHERE continent_id = ?;",
+                (continent_code, name, continent_id))
+    except sqlite3.IntegrityError as e:
+        yield SaveContinentFailedEvent(e)
 
-        elif type(event) == SaveContinentEvent:
-            continent = event._continent
-            continent_id = continent.continent_id
-            continent_code = continent.continent_code
-            name = continent.name
-            cursor = connection.cursor()
-            # Execute the SQL statement
-            try:
-                cursor.execute("UPDATE continent SET continent_code = ?, name = ? WHERE continent_id = ?;",
-                           (continent_code, name, continent_id))
-            except sqlite3.IntegrityError as e:
-                yield SaveContinentFailedEvent(e)
-            # Fetch the result
-            result = cursor.fetchone()
-            try:
-                yield ContinentSavedEvent(result)
-            except sqlite3.Error:
-                yield SaveContinentFailedEvent(result)
-            cursor.close()
+    result = cursor.fetchone()
+    yield ContinentSavedEvent(result)
+    cursor.close()
+
+
+def process_start_country_search_event(event):
+
+
 
 def is_sqlite_database(database_path):
     """Checks if file is a database"""
