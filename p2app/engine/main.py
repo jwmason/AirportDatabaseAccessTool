@@ -46,10 +46,10 @@ class Engine:
             database_path = event.path()
             db_checker = is_sqlite_database(database_path)
             if db_checker:
-                yield DatabaseOpenedEvent(database_path)
                 global connection
                 connection = sqlite3.connect(database_path, isolation_level = None)
                 _quietly_execute_statement(connection, 'PRAGMA foreign_keys = ON;')
+                yield DatabaseOpenedEvent(database_path)
             else:
                 yield DatabaseOpenFailedEvent('The file selected is not a database file.')
 
@@ -131,10 +131,12 @@ class Engine:
             name = continent.name
             cursor = connection.cursor()
             # Execute the SQL statement
-            cursor.execute(
+            try:
+                cursor.execute(
                 "INSERT INTO continent (continent_id, continent_code, name) VALUES (?, ?, ?);",
                 (continent_id, continent_code, name))
-
+            except sqlite3.IntegrityError as e:
+                yield SaveContinentFailedEvent(e)
             # Fetch the result
             result = cursor.fetchone()
             try:
@@ -150,8 +152,11 @@ class Engine:
             name = continent.name
             cursor = connection.cursor()
             # Execute the SQL statement
-            cursor.execute("UPDATE continent SET continent_code = ?, name = ? WHERE continent_id = ?;",
+            try:
+                cursor.execute("UPDATE continent SET continent_code = ?, name = ? WHERE continent_id = ?;",
                            (continent_code, name, continent_id))
+            except sqlite3.IntegrityError as e:
+                yield SaveContinentFailedEvent(e)
             # Fetch the result
             result = cursor.fetchone()
             try:
