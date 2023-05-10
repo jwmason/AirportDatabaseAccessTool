@@ -14,7 +14,8 @@ from p2app.events.app import QuitInitiatedEvent, EndApplicationEvent
 from p2app.events.database import OpenDatabaseEvent, CloseDatabaseEvent,\
     DatabaseOpenedEvent, DatabaseOpenFailedEvent, DatabaseClosedEvent
 from p2app.events.continents import StartContinentSearchEvent, ContinentSearchResultEvent,\
-    LoadContinentEvent, ContinentLoadedEvent
+    LoadContinentEvent, ContinentLoadedEvent, ContinentSavedEvent, SaveNewContinentEvent,\
+    SaveContinentFailedEvent, SaveContinentEvent
 from collections import namedtuple
 
 
@@ -123,6 +124,19 @@ class Engine:
                  yield ()
              cursor.close()
 
+        elif type(event) == SaveNewContinentEvent:
+            continent = event._continent
+            print(continent)
+            yield ContinentSavedEvent(continent)
+            # except sqlite3.Error:
+            #     yield SaveContinentFailedEvent(continent)
+
+        elif type(event) == SaveContinentEvent:
+            continent = event._continent
+            print(continent)
+            yield ContinentSavedEvent(continent)
+            # except sqlite3.Error:
+            #     yield SaveContinentFailedEvent(continent)
 
 def is_sqlite_database(database_path):
     """Checks if file is a database"""
