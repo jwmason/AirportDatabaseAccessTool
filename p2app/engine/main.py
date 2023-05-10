@@ -13,7 +13,8 @@ import sqlite3
 from p2app.events.app import QuitInitiatedEvent, EndApplicationEvent
 from p2app.events.database import OpenDatabaseEvent, CloseDatabaseEvent,\
     DatabaseOpenedEvent, DatabaseOpenFailedEvent, DatabaseClosedEvent
-from p2app.events.continents import StartContinentSearchEvent, ContinentSearchResultEvent
+from p2app.events.continents import StartContinentSearchEvent, ContinentSearchResultEvent,\
+    LoadContinentEvent, ContinentLoadedEvent
 from collections import namedtuple
 
 
@@ -57,26 +58,70 @@ class Engine:
         elif type(event) == StartContinentSearchEvent:
             continent_name = event._name
             continent_code = event._continent_code
-            if continent_name is not None and event.continent_code is not None:
-                # yield ContinentSearchResultEvent(continent)
-                pass
+            global Continent
+            Continent = namedtuple('Continent', ['continent_id', 'continent_code', 'name'])
+
+            if (continent_name is not None) and (continent_code is not None):
+                cursor = connection.cursor()
+                # Execute the SQL statement
+                cursor.execute("SELECT * FROM continent WHERE continent_code = ? AND name = ?;",
+                                 (continent_code, continent_name))
+                # Fetch the result
+                result = cursor.fetchone()
+                if result is not None:
+                    result = Continent._make(result)
+                    yield ContinentSearchResultEvent(result)
+                else:
+                    # Handle the case when no matching continent is found
+                    yield ()
+                cursor.close()
+
             elif continent_name is not None:
-                # yield ContinentSearchResultEvent(continent)
-                pass
-            elif event.continent_code is not None:
                 cursor = connection.cursor()
 
                 # Execute the SQL statement
-                cursor.execute("SELECT * FROM continent WHERE continent_code = ?",
-                               (continent_code,))
-
+                cursor.execute("SELECT * FROM continent WHERE name = ?;",
+                                 (continent_name,))
                 # Fetch the result
                 result = cursor.fetchone()
-                Continent = namedtuple('Continent', ['continent_id', 'continent_code', 'name'])
-                result = Continent._make(result)
-                yield ContinentSearchResultEvent(result)
-                # Close the cursor and the database connection
+                if result is not None:
+                    result = Continent._make(result)
+                    yield ContinentSearchResultEvent(result)
+                else:
+                    # Handle the case when no matching continent is found
+                    yield ()
                 cursor.close()
+
+            elif event.continent_code is not None:
+                cursor = connection.cursor()
+                # Execute the SQL statement
+                cursor.execute("SELECT * FROM continent WHERE continent_code = ?;",
+                                (continent_code,))
+                # Fetch the result
+                result = cursor.fetchone()
+                if result is not None:
+                    result = Continent._make(result)
+                    yield ContinentSearchResultEvent(result)
+                else:
+                    # Handle the case when no matching continent is found
+                    yield ()
+                cursor.close()
+
+        elif type(event) == LoadContinentEvent:
+             continent_id = event._continent_id
+             cursor = connection.cursor()
+             # Execute the SQL statement
+             cursor.execute("SELECT * FROM continent WHERE continent_id = ?;",
+                            (continent_id,))
+             # Fetch the result
+             result = cursor.fetchone()
+             if result is not None:
+                 result = Continent._make(result)
+                 yield ContinentLoadedEvent(result)
+             else:
+                 # Handle the case when no matching continent is found
+                 yield ()
+             cursor.close()
 
 
 def is_sqlite_database(database_path):
