@@ -11,8 +11,8 @@
 
 import sqlite3
 from p2app.events.app import QuitInitiatedEvent, EndApplicationEvent, ErrorEvent
-from p2app.events.database import OpenDatabaseEvent, CloseDatabaseEvent,\
-    DatabaseOpenedEvent, DatabaseOpenFailedEvent, DatabaseClosedEvent
+from p2app.events.database import OpenDatabaseEvent, CloseDatabaseEvent, DatabaseClosedEvent,\
+    DatabaseOpenFailedEvent
 from p2app.events.continents import StartContinentSearchEvent, ContinentSearchResultEvent,\
     LoadContinentEvent, ContinentLoadedEvent, ContinentSavedEvent, SaveNewContinentEvent,\
     SaveContinentFailedEvent, SaveContinentEvent
@@ -21,6 +21,7 @@ from p2app.events.countries import StartCountrySearchEvent, CountrySearchResultE
     SaveCountryFailedEvent
 from p2app.events.regions import StartRegionSearchEvent, RegionSearchResultEvent, LoadRegionEvent,\
     RegionLoadedEvent, SaveNewRegionEvent, SaveRegionEvent, RegionSavedEvent, SaveRegionFailedEvent
+from p2app.engine.database import process_open_database_event, is_sqlite_database, _quietly_execute_statement
 from collections import namedtuple
 
 
@@ -44,54 +45,56 @@ class Engine:
         # Defining global namedtuple variables
         define_globals()
 
-        try:
-            # Application-Level Events
+        # Application-Level Events
 
-            if isinstance(event, QuitInitiatedEvent):
-                yield EndApplicationEvent()
+        if isinstance(event, QuitInitiatedEvent):
+            yield EndApplicationEvent()
 
-            elif isinstance(event, OpenDatabaseEvent):
-                yield from process_open_database_event(event)
+        elif isinstance(event, OpenDatabaseEvent):
+            # Making connection to database global
+            yield from process_open_database_event(event)
+            try:
+                global connection
+                connection = get_connection(event)
+            except UnboundLocalError:
+                pass
 
-            elif isinstance(event, CloseDatabaseEvent):
-                yield DatabaseClosedEvent()
+        elif isinstance(event, CloseDatabaseEvent):
+            yield DatabaseClosedEvent()
 
-            # Continent-Related Events
+        # Continent-Related Events
 
-            elif isinstance(event, StartContinentSearchEvent):
-                yield from process_start_continent_search_event(event)
+        elif isinstance(event, StartContinentSearchEvent):
+            yield from process_start_continent_search_event(event)
 
-            elif isinstance(event, LoadContinentEvent):
-                yield from process_load_continent_event(event)
+        elif isinstance(event, LoadContinentEvent):
+            yield from process_load_continent_event(event)
 
-            elif isinstance(event, (SaveNewContinentEvent, SaveContinentEvent)):
-                yield from process_save_continent_event(event)
+        elif isinstance(event, (SaveNewContinentEvent, SaveContinentEvent)):
+            yield from process_save_continent_event(event)
 
-            # Country-related Events
+        # Country-related Events
 
-            elif isinstance(event, StartCountrySearchEvent):
-                yield from process_start_country_search_event(event)
+        elif isinstance(event, StartCountrySearchEvent):
+            yield from process_start_country_search_event(event)
 
 
-            elif isinstance(event, LoadCountryEvent):
-                yield from process_load_country_event(event)
+        elif isinstance(event, LoadCountryEvent):
+            yield from process_load_country_event(event)
 
-            elif isinstance(event, (SaveNewCountryEvent, SaveCountryEvent)):
-                yield from process_save_country_event(event)
+        elif isinstance(event, (SaveNewCountryEvent, SaveCountryEvent)):
+            yield from process_save_country_event(event)
 
-            # Region-related Events
+        # Region-related Events
 
-            elif isinstance(event, StartRegionSearchEvent):
-                yield from process_start_region_search_event(event)
+        elif isinstance(event, StartRegionSearchEvent):
+            yield from process_start_region_search_event(event)
 
-            elif isinstance(event, LoadRegionEvent):
-                yield from process_load_region_event(event)
+        elif isinstance(event, LoadRegionEvent):
+            yield from process_load_region_event(event)
 
-            elif isinstance(event, (SaveNewRegionEvent, SaveRegionEvent)):
-                yield from process_save_region_event(event)
-
-        except Exception as e:
-            yield ErrorEvent(e)
+        elif isinstance(event, (SaveNewRegionEvent, SaveRegionEvent)):
+            yield from process_save_region_event(event)
 
 
 def define_globals():
@@ -106,19 +109,14 @@ def define_globals():
                                    'continent_id', 'country_id', 'wikipedia_link', 'keywords'])
 
 
-def process_open_database_event(event):
-    """This function opens the database file"""
+def get_connection(event):
     database_path = event.path()
     # Checks if it's a database file
     db_checker = is_sqlite_database(database_path)
     if db_checker:
-        global connection
         # Allowing only one connection at a time and turning on data integrity
         connection = sqlite3.connect(database_path, isolation_level = None)
-        _quietly_execute_statement(connection, 'PRAGMA foreign_keys = ON;')
-        yield DatabaseOpenedEvent(database_path)
-    else:
-        yield DatabaseOpenFailedEvent('The file selected is not a database file.')
+    return connection
 
 
 def process_start_continent_search_event(event):
@@ -352,24 +350,3 @@ def process_save_region_event(event):
     result = cursor.fetchone()
     yield RegionSavedEvent(result)
     cursor.close()
-
-
-def is_sqlite_database(database_path):
-    """Checks if file is a database"""
-    with open(database_path, "rb") as file:
-        header = file.read(16)
-        return header.startswith(b"SQLite format 3")
-
-
-def _quietly_execute_statement(connection, statement):
-    """Executes a statement quietly"""
-    cursor = None
-    try:
-        # Execute a statement that we expect not to return any data.
-        cursor = connection.execute(statement)
-    finally:
-        # When we get here, cursor might be None (if executing the statement
-        # failed), so we need to be careful to close the cursor only if it
-        # was opened.
-        if cursor is not None:
-            cursor.close()
