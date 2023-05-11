@@ -303,7 +303,7 @@ def process_start_region_search_event(event):
 
 
 def process_load_region_event(event):
-    """This function loads country based on id"""
+    """This function loads region based on id"""
     # Defining parameters
     region_id = event._region_id
     cursor = connection.cursor()
@@ -320,7 +320,34 @@ def process_load_region_event(event):
 
 
 def process_save_region_event(event):
-    pass
+    """This function saves region information, old and new regions"""
+    # Defining parameters
+    region = event._region
+    region_id = region.region_id
+    region_code = region.region_code
+    local_code = region.local_code
+    name = region.name
+    continent_id = region.continent_id
+    country_id = region.country_id
+    wikipedia_link = region.wikipedia_link
+    keywords = region.keywords
+    cursor = connection.cursor()
+    # Filtering New Country Event versus Existing Country Event
+    try:
+        if isinstance(event, SaveNewRegionEvent):
+            cursor.execute(
+                "INSERT INTO region (region_id, region_code, local_code, name, continent_id, country_id, wikipedia_link, keywords) VALUES (?, ?, ?, ?, ?, ?, ?, ?);",
+                (region_id, region_code, local_code, name, continent_id, country_id, wikipedia_link, keywords))
+        elif isinstance(event, SaveRegionEvent):
+            cursor.execute(
+                "UPDATE region SET region_code = ?, local_code = ?, name = ?, continent_id = ?, country_id = ?, wikipedia_link = ?, keywords = ? WHERE region_id = ?;",
+                (region_code, local_code, name, continent_id, country_id, wikipedia_link, keywords, region_id))
+    except sqlite3.IntegrityError as e:
+        yield SaveRegionFailedEvent(e)
+    # Fetching result
+    result = cursor.fetchone()
+    yield RegionSavedEvent(result)
+    cursor.close()
 
 
 def is_sqlite_database(database_path):
