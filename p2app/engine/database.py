@@ -1,5 +1,6 @@
 """This module is in charge of handling the database"""
 
+
 import sqlite3
 from p2app.events.database import DatabaseOpenedEvent, DatabaseOpenFailedEvent
 

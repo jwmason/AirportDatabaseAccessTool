@@ -79,7 +79,8 @@ def process_save_continent_event(event, connection):
                 (continent_code, name, continent_id))
     except sqlite3.IntegrityError as e:
         yield SaveContinentFailedEvent(e)
-    # Fetching result
-    result = cursor.fetchone()
-    yield ContinentSavedEvent(result)
+    else:
+        # Fetching result
+        result = cursor.fetchone()
+        yield ContinentSavedEvent(result)
     cursor.close()

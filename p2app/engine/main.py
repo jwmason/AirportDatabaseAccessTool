@@ -8,7 +8,6 @@
 # This is the outermost layer of the part of the program that you'll need to build,
 # which means that YOU WILL DEFINITELY NEED TO MAKE CHANGES TO THIS FILE.
 
-
 import sqlite3
 
 # p2app.event modules
@@ -46,7 +45,6 @@ class Engine:
         yielding zero or more events in response."""
 
         # Application-Level Events
-
         if isinstance(event, QuitInitiatedEvent):
             yield EndApplicationEvent()
         elif isinstance(event, OpenDatabaseEvent):
@@ -61,31 +59,39 @@ class Engine:
             yield DatabaseClosedEvent()
 
         # Continent-Related Events
-
         elif isinstance(event, StartContinentSearchEvent):
             yield from process_start_continent_search_event(event, connection)
         elif isinstance(event, LoadContinentEvent):
-            yield from process_load_continent_event(event, connection)
+            try:
+                yield from process_load_continent_event(event, connection)
+            except Exception as e:
+                yield ErrorEvent(e)
         elif isinstance(event, (SaveNewContinentEvent, SaveContinentEvent)):
             yield from process_save_continent_event(event, connection)
 
         # Country-related Events
-
         elif isinstance(event, StartCountrySearchEvent):
             yield from process_start_country_search_event(event, connection)
         elif isinstance(event, LoadCountryEvent):
-            yield from process_load_country_event(event, connection)
+            try:
+                yield from process_load_country_event(event, connection)
+            except Exception as e:
+                yield ErrorEvent(e)
         elif isinstance(event, (SaveNewCountryEvent, SaveCountryEvent)):
             yield from process_save_country_event(event, connection)
 
         # Region-related Events
-
         elif isinstance(event, StartRegionSearchEvent):
             yield from process_start_region_search_event(event, connection)
         elif isinstance(event, LoadRegionEvent):
-            yield from process_load_region_event(event, connection)
+            try:
+                yield from process_load_region_event(event, connection)
+            except Exception as e:
+                yield ErrorEvent(e)
         elif isinstance(event, (SaveNewRegionEvent, SaveRegionEvent)):
             yield from process_save_region_event(event, connection)
+        else:
+            yield ErrorEvent('ErrorEvent')
 
 
 def get_connection(event):

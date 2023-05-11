@@ -13,6 +13,7 @@ def define_globals():
     Country = namedtuple('Country', ['country_id', 'country_code', 'name', 'continent_id',
                                      'wikipedia_link', 'keywords'])
 
+
 def process_start_country_search_event(event, connection):
     """This function starts a country search"""
     # Defining parameters
@@ -82,7 +83,8 @@ def process_save_country_event(event, connection):
                 (country_code, name, continent_id, wiki_link, keywords, country_id))
     except sqlite3.IntegrityError as e:
         yield SaveCountryFailedEvent(e)
-    # Fetching result
-    result = cursor.fetchone()
-    yield CountrySavedEvent(result)
+    else:
+        # Fetching result
+        result = cursor.fetchone()
+        yield CountrySavedEvent(result)
     cursor.close()

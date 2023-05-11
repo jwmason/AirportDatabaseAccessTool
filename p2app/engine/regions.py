@@ -96,7 +96,8 @@ def process_save_region_event(event, connection):
                 (region_code, local_code, name, continent_id, country_id, wikipedia_link, keywords, region_id))
     except sqlite3.IntegrityError as e:
         yield SaveRegionFailedEvent(e)
-    # Fetching result
-    result = cursor.fetchone()
-    yield RegionSavedEvent(result)
+    else:
+        # Fetching result
+        result = cursor.fetchone()
+        yield RegionSavedEvent(result)
     cursor.close()
