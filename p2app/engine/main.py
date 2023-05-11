@@ -11,8 +11,7 @@
 
 import sqlite3
 from p2app.events.app import QuitInitiatedEvent, EndApplicationEvent, ErrorEvent
-from p2app.events.database import OpenDatabaseEvent, CloseDatabaseEvent, DatabaseClosedEvent,\
-    DatabaseOpenFailedEvent
+from p2app.events.database import OpenDatabaseEvent, CloseDatabaseEvent, DatabaseClosedEvent
 from p2app.events.continents import StartContinentSearchEvent, ContinentSearchResultEvent,\
     LoadContinentEvent, ContinentLoadedEvent, ContinentSavedEvent, SaveNewContinentEvent,\
     SaveContinentFailedEvent, SaveContinentEvent
@@ -21,7 +20,15 @@ from p2app.events.countries import StartCountrySearchEvent, CountrySearchResultE
     SaveCountryFailedEvent
 from p2app.events.regions import StartRegionSearchEvent, RegionSearchResultEvent, LoadRegionEvent,\
     RegionLoadedEvent, SaveNewRegionEvent, SaveRegionEvent, RegionSavedEvent, SaveRegionFailedEvent
-from p2app.engine.database import process_open_database_event, is_sqlite_database, _quietly_execute_statement
+
+# p2app.engine modules
+
+from p2app.engine.database import process_open_database_event, is_sqlite_database
+from p2app.engine.continents import process_start_continent_search_event,\
+    process_load_continent_event, process_save_continent_event
+
+# Continent, Country, Region naming
+
 from collections import namedtuple
 
 
@@ -65,13 +72,13 @@ class Engine:
         # Continent-Related Events
 
         elif isinstance(event, StartContinentSearchEvent):
-            yield from process_start_continent_search_event(event)
+            yield from process_start_continent_search_event(event, connection)
 
         elif isinstance(event, LoadContinentEvent):
-            yield from process_load_continent_event(event)
+            yield from process_load_continent_event(event, connection)
 
         elif isinstance(event, (SaveNewContinentEvent, SaveContinentEvent)):
-            yield from process_save_continent_event(event)
+            yield from process_save_continent_event(event, connection)
 
         # Country-related Events
 
@@ -117,77 +124,6 @@ def get_connection(event):
         # Allowing only one connection at a time and turning on data integrity
         connection = sqlite3.connect(database_path, isolation_level = None)
     return connection
-
-
-def process_start_continent_search_event(event):
-    """This function starts continent search"""
-    # Defining parameters
-    continent_name = event._name
-    continent_code = event._continent_code
-    cursor = connection.cursor()
-    # Checking all cases of search parameters
-    if continent_name is not None and continent_code is not None:
-        cursor.execute("SELECT * FROM continent WHERE continent_code = ? AND name = ?;",
-                       (continent_code, continent_name))
-    elif continent_name is not None:
-        cursor.execute("SELECT * FROM continent WHERE name = ?;",
-                       (continent_name,))
-    elif continent_code is not None:
-        cursor.execute("SELECT * FROM continent WHERE continent_code = ?;",
-                       (continent_code,))
-    # Fetching result
-    result = cursor.fetchall()
-    if result is not None:
-        for continent in result:
-            continent = Continent._make(continent)
-            yield ContinentSearchResultEvent(continent)
-    else:
-        yield ()
-    cursor.close()
-
-
-def process_load_continent_event(event):
-    """This function loads continent based on id"""
-    # Defining parameters
-    continent_id = event._continent_id
-    cursor = connection.cursor()
-    cursor.execute("SELECT * FROM continent WHERE continent_id = ?;",
-                   (continent_id,))
-    # Fetching result
-    result = cursor.fetchone()
-    if result is not None:
-        result = Continent._make(result)
-        yield ContinentLoadedEvent(result)
-    else:
-        yield ()
-    cursor.close()
-
-
-def process_save_continent_event(event):
-    """This function saves continent information, old and new continents"""
-    # Defining parameters
-    continent = event._continent
-    continent_id = continent.continent_id
-    continent_code = continent.continent_code
-    name = continent.name
-    cursor = connection.cursor()
-
-    # Filtering New Continent Event versus Existing Continent Event
-    try:
-        if isinstance(event, SaveNewContinentEvent):
-            cursor.execute(
-                "INSERT INTO continent (continent_id, continent_code, name) VALUES (?, ?, ?);",
-                (continent_id, continent_code, name))
-        elif isinstance(event, SaveContinentEvent):
-            cursor.execute(
-                "UPDATE continent SET continent_code = ?, name = ? WHERE continent_id = ?;",
-                (continent_code, name, continent_id))
-    except sqlite3.IntegrityError as e:
-        yield SaveContinentFailedEvent(e)
-    # Fetching result
-    result = cursor.fetchone()
-    yield ContinentSavedEvent(result)
-    cursor.close()
 
 
 def process_start_country_search_event(event):
