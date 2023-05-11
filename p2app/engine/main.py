@@ -26,6 +26,8 @@ from p2app.events.regions import StartRegionSearchEvent, RegionSearchResultEvent
 from p2app.engine.database import process_open_database_event, is_sqlite_database
 from p2app.engine.continents import process_start_continent_search_event,\
     process_load_continent_event, process_save_continent_event
+from p2app.engine.countries import process_start_country_search_event, process_load_country_event,\
+    process_save_country_event
 
 # Continent, Country, Region naming
 
@@ -48,9 +50,6 @@ class Engine:
     def process_event(self, event):
         """A generator function that processes one event sent from the user interface,
         yielding zero or more events in response."""
-
-        # Defining global namedtuple variables
-        define_globals()
 
         # Application-Level Events
 
@@ -83,14 +82,14 @@ class Engine:
         # Country-related Events
 
         elif isinstance(event, StartCountrySearchEvent):
-            yield from process_start_country_search_event(event)
+            yield from process_start_country_search_event(event, connection)
 
 
         elif isinstance(event, LoadCountryEvent):
-            yield from process_load_country_event(event)
+            yield from process_load_country_event(event, connection)
 
         elif isinstance(event, (SaveNewCountryEvent, SaveCountryEvent)):
-            yield from process_save_country_event(event)
+            yield from process_save_country_event(event, connection)
 
         # Region-related Events
 
@@ -124,80 +123,6 @@ def get_connection(event):
         # Allowing only one connection at a time and turning on data integrity
         connection = sqlite3.connect(database_path, isolation_level = None)
     return connection
-
-
-def process_start_country_search_event(event):
-    """This function starts a country search"""
-    # Defining parameters
-    country_name = event._name
-    country_code = event._country_code
-    cursor = connection.cursor()
-
-    # Checking all cases of search parameters
-    if country_name is not None and country_code is not None:
-        cursor.execute("SELECT * FROM country WHERE country_code = ? AND name = ?;",
-                       (country_code, country_name))
-    elif country_name is not None:
-        cursor.execute("SELECT * FROM country WHERE name = ?;",
-                       (country_name,))
-    elif country_code is not None:
-        cursor.execute("SELECT * FROM country WHERE country_code = ?;",
-                       (country_code,))
-        # Fetching result
-        result = cursor.fetchall()
-        if result is not None:
-            for country in result:
-                country = Country._make(country)
-                yield RegionSearchResultEvent(country)
-        else:
-            yield ()
-        cursor.close()
-
-
-def process_load_country_event(event):
-    """This function loads country based on id"""
-    # Defining parameters
-    country_id = event._country_id
-    cursor = connection.cursor()
-    cursor.execute("SELECT * FROM country WHERE country_id = ?;",
-                   (country_id,))
-    # Fetching result
-    result = cursor.fetchone()
-    if result is not None:
-        result = Country._make(result)
-        yield CountryLoadedEvent(result)
-    else:
-        yield ()
-    cursor.close()
-
-
-def process_save_country_event(event):
-    """This function saves country information, old and new countries"""
-    # Defining parameters
-    country = event._country
-    country_id = country.country_id
-    country_code = country.country_code
-    name = country.name
-    continent_id = country.continent_id
-    wiki_link = country.wikipedia_link
-    keywords = country.keywords
-    cursor = connection.cursor()
-    # Filtering New Country Event versus Existing Country Event
-    try:
-        if isinstance(event, SaveNewCountryEvent):
-            cursor.execute(
-                "INSERT INTO country (country_id, country_code, name, continent_id, wikipedia_link, keywords) VALUES (?, ?, ?, ?, ?, ?);",
-                (country_id, country_code, name, continent_id, wiki_link, keywords))
-        elif isinstance(event, SaveCountryEvent):
-            cursor.execute(
-                "UPDATE country SET country_code = ?, name = ?, continent_id = ?, wikipedia_link = ?, keywords = ? WHERE country_id = ?;",
-                (country_code, name, continent_id, wiki_link, keywords, country_id))
-    except sqlite3.IntegrityError as e:
-        yield SaveCountryFailedEvent(e)
-    # Fetching result
-    result = cursor.fetchone()
-    yield CountrySavedEvent(result)
-    cursor.close()
 
 
 def process_start_region_search_event(event):
