@@ -303,7 +303,20 @@ def process_start_region_search_event(event):
 
 
 def process_load_region_event(event):
-    pass
+    """This function loads country based on id"""
+    # Defining parameters
+    region_id = event._region_id
+    cursor = connection.cursor()
+    cursor.execute("SELECT * FROM region WHERE region_id = ?;",
+                   (region_id,))
+    # Fetching result
+    result = cursor.fetchone()
+    if result is not None:
+        result = Region._make(result)
+        yield RegionLoadedEvent(result)
+    else:
+        yield ()
+    cursor.close()
 
 
 def process_save_region_event(event):
