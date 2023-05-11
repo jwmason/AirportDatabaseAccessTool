@@ -19,6 +19,8 @@ from p2app.events.continents import StartContinentSearchEvent, ContinentSearchRe
 from p2app.events.countries import StartCountrySearchEvent, CountrySearchResultEvent,\
     LoadCountryEvent, CountryLoadedEvent, SaveCountryEvent, SaveNewCountryEvent, CountrySavedEvent,\
     SaveCountryFailedEvent
+from p2app.events.regions import StartRegionSearchEvent, RegionSearchResultEvent, LoadRegionEvent,\
+    RegionLoadedEvent, SaveNewRegionEvent, SaveRegionEvent, RegionSavedEvent, SaveRegionFailedEvent
 from collections import namedtuple
 
 
@@ -76,6 +78,18 @@ class Engine:
         elif isinstance(event, (SaveNewCountryEvent, SaveCountryEvent)):
             yield from process_save_country_event(event)
 
+        # Region-related Events
+
+        elif isinstance(event, StartRegionSearchEvent):
+            yield from process_start_region_search_event(event)
+
+        elif isinstance(event, LoadRegionEvent):
+            yield from process_load_region_event(event)
+
+        elif isinstance(event, (SaveNewRegionEvent, SaveRegionEvent)):
+            yield from process_save_region_event(event)
+
+
 def define_globals():
     """This function defines the global namedtuples of the functions"""
     global Continent
@@ -120,10 +134,11 @@ def process_start_continent_search_event(event):
         cursor.execute("SELECT * FROM continent WHERE continent_code = ?;",
                        (continent_code,))
     # Fetching result
-    result = cursor.fetchone()
+    result = cursor.fetchall()
     if result is not None:
-        result = Continent._make(result)
-        yield ContinentSearchResultEvent(result)
+        for continent in result:
+            continent = Continent._make(continent)
+            yield ContinentSearchResultEvent(continent)
     else:
         yield ()
     cursor.close()
@@ -190,14 +205,15 @@ def process_start_country_search_event(event):
     elif country_code is not None:
         cursor.execute("SELECT * FROM country WHERE country_code = ?;",
                        (country_code,))
-    # Fetching result
-    result = cursor.fetchone()
-    if result is not None:
-        result = Country._make(result)
-        yield CountrySearchResultEvent(result)
-    else:
-        yield ()
-    cursor.close()
+        # Fetching result
+        result = cursor.fetchall()
+        if result is not None:
+            for country in result:
+                country = Country._make(country)
+                yield RegionSearchResultEvent(country)
+        else:
+            yield ()
+        cursor.close()
 
 
 def process_load_country_event(event):
@@ -218,7 +234,7 @@ def process_load_country_event(event):
 
 
 def process_save_country_event(event):
-    """This function saves continent information, old and new countries"""
+    """This function saves country information, old and new countries"""
     # Defining parameters
     country = event._country
     country_id = country.country_id
@@ -228,7 +244,6 @@ def process_save_country_event(event):
     wiki_link = country.wikipedia_link
     keywords = country.keywords
     cursor = connection.cursor()
-
     # Filtering New Country Event versus Existing Country Event
     try:
         if isinstance(event, SaveNewCountryEvent):
@@ -248,7 +263,43 @@ def process_save_country_event(event):
 
 
 def process_start_region_search_event(event):
-    pass
+    """This function starts region search event"""
+    # Defining parameters
+    region_name = event._name
+    region_code = event._region_code
+    region_local_code = event._local_code
+    cursor = connection.cursor()
+    # Checking all cases of search parameters
+    if region_name is not None and region_code is not None and region_local_code is not None:
+        cursor.execute("SELECT * FROM region WHERE region_code = ? AND name = ? AND local_code = ?;",
+                       (region_code, region_name, region_local_code))
+    elif region_name is not None and region_code is not None:
+        cursor.execute("SELECT * FROM region WHERE region_code = ? AND name = ?;",
+                       (region_code, region_name,))
+    elif region_name is not None and region_local_code is not None:
+        cursor.execute("SELECT * FROM region WHERE local_code = ? AND name = ?;",
+                       (region_local_code, region_name,))
+    elif region_code is not None and region_local_code is not None:
+        cursor.execute("SELECT * FROM region WHERE local_code = ? AND region_code = ?;",
+                       (region_local_code, region_code,))
+    elif region_name is not None:
+        cursor.execute("SELECT * FROM region WHERE name = ?;",
+                       (region_name,))
+    elif region_code is not None:
+        cursor.execute("SELECT * FROM region WHERE region_code = ?;",
+                       (region_code,))
+    elif region_local_code is not None:
+        cursor.execute("SELECT * FROM region WHERE local_code = ?;",
+                       (region_local_code,))
+    # Fetching result
+    result = cursor.fetchall()
+    if result is not None:
+        for region in result:
+            region = Region._make(region)
+            yield RegionSearchResultEvent(region)
+    else:
+        yield ()
+    cursor.close()
 
 
 def process_load_region_event(event):
