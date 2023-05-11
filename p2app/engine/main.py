@@ -10,7 +10,7 @@
 
 
 import sqlite3
-from p2app.events.app import QuitInitiatedEvent, EndApplicationEvent
+from p2app.events.app import QuitInitiatedEvent, EndApplicationEvent, ErrorEvent
 from p2app.events.database import OpenDatabaseEvent, CloseDatabaseEvent,\
     DatabaseOpenedEvent, DatabaseOpenFailedEvent, DatabaseClosedEvent
 from p2app.events.continents import StartContinentSearchEvent, ContinentSearchResultEvent,\
@@ -44,50 +44,54 @@ class Engine:
         # Defining global namedtuple variables
         define_globals()
 
-        # Application-Level Events
+        try:
+            # Application-Level Events
 
-        if isinstance(event, QuitInitiatedEvent):
-            yield EndApplicationEvent()
+            if isinstance(event, QuitInitiatedEvent):
+                yield EndApplicationEvent()
 
-        elif isinstance(event, OpenDatabaseEvent):
-            yield from process_open_database_event(event)
+            elif isinstance(event, OpenDatabaseEvent):
+                yield from process_open_database_event(event)
 
-        elif isinstance(event, CloseDatabaseEvent):
-            yield DatabaseClosedEvent()
+            elif isinstance(event, CloseDatabaseEvent):
+                yield DatabaseClosedEvent()
 
-        # Continent-Related Events
+            # Continent-Related Events
 
-        elif isinstance(event, StartContinentSearchEvent):
-            yield from process_start_continent_search_event(event)
+            elif isinstance(event, StartContinentSearchEvent):
+                yield from process_start_continent_search_event(event)
 
-        elif isinstance(event, LoadContinentEvent):
-            yield from process_load_continent_event(event)
+            elif isinstance(event, LoadContinentEvent):
+                yield from process_load_continent_event(event)
 
-        elif isinstance(event, (SaveNewContinentEvent, SaveContinentEvent)):
-            yield from process_save_continent_event(event)
+            elif isinstance(event, (SaveNewContinentEvent, SaveContinentEvent)):
+                yield from process_save_continent_event(event)
 
-        # Country-related Events
+            # Country-related Events
 
-        elif isinstance(event, StartCountrySearchEvent):
-            yield from process_start_country_search_event(event)
+            elif isinstance(event, StartCountrySearchEvent):
+                yield from process_start_country_search_event(event)
 
 
-        elif isinstance(event, LoadCountryEvent):
-            yield from process_load_country_event(event)
+            elif isinstance(event, LoadCountryEvent):
+                yield from process_load_country_event(event)
 
-        elif isinstance(event, (SaveNewCountryEvent, SaveCountryEvent)):
-            yield from process_save_country_event(event)
+            elif isinstance(event, (SaveNewCountryEvent, SaveCountryEvent)):
+                yield from process_save_country_event(event)
 
-        # Region-related Events
+            # Region-related Events
 
-        elif isinstance(event, StartRegionSearchEvent):
-            yield from process_start_region_search_event(event)
+            elif isinstance(event, StartRegionSearchEvent):
+                yield from process_start_region_search_event(event)
 
-        elif isinstance(event, LoadRegionEvent):
-            yield from process_load_region_event(event)
+            elif isinstance(event, LoadRegionEvent):
+                yield from process_load_region_event(event)
 
-        elif isinstance(event, (SaveNewRegionEvent, SaveRegionEvent)):
-            yield from process_save_region_event(event)
+            elif isinstance(event, (SaveNewRegionEvent, SaveRegionEvent)):
+                yield from process_save_region_event(event)
+
+        except Exception as e:
+            yield ErrorEvent(e)
 
 
 def define_globals():
